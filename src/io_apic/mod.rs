@@ -1,21 +1,21 @@
-use core::convert::TryInto;
-
 use bit_field::BitField;
-use volatile::Volatile;
+use core::ptr::NonNull;
+use volatile::VolatilePtr;
+use volatile::access::{Access, ReadWrite};
 
 pub mod values;
 
 pub struct IoApicBase<'a> {
-    pub select: Volatile<&'a mut Select>,
-    pub window: Volatile<&'a mut u32>,
+    pub select: VolatilePtr<'a, Select>,
+    pub window: VolatilePtr<'a, u32>,
 }
 
 impl IoApicBase<'_> {
     /// base address must have 'a lifetime
-    pub unsafe fn new(base_addr: *mut u8) -> Self {
+    pub unsafe fn new(base_addr: NonNull<u8>) -> Self {
         Self {
-            select: unsafe { Self::offset(base_addr, Offset::Select) },
-            window: unsafe { Self::offset(base_addr, Offset::Window) },
+            select: unsafe { Self::offset(base_addr, Offset::Select, ReadWrite) },
+            window: unsafe { Self::offset(base_addr, Offset::Window, ReadWrite) },
         }
     }
 
@@ -80,13 +80,17 @@ impl IoApicBase<'_> {
         self.write_redirection_table_entry(irq, value);
     }
 
-    unsafe fn offset<'a, T>(base_addr: *mut u8, offset: Offset) -> Volatile<&'a mut T> {
-        let ptr = Self::offset_ptr(base_addr, offset).cast();
-        Volatile::new(unsafe { &mut *ptr })
-    }
-
-    fn offset_ptr(base_addr: *mut u8, offset: Offset) -> *mut u8 {
-        base_addr.wrapping_add(offset as usize)
+    unsafe fn offset<'a, T, A>(base_addr: NonNull<u8>, offset: Offset, access: A) -> VolatilePtr<'a, T, A>
+    where A: Access
+    {
+        VolatilePtr::new_restricted(
+            access,
+            base_addr
+                .map_addr(|addr| {
+                    addr.unchecked_add(offset as usize)
+                })
+                .cast()
+        )
     }
 }
 
@@ -120,7 +124,8 @@ impl Select {
         Self(index.into())
     }
 
-    pub fn set_index(&mut self, index: impl Into<u8>) {
+    pub fn set_index(mut self, index: impl Into<u8>) -> Self {
         self.0.set_bits(0..8, index.into().into());
+        self
     }
 }

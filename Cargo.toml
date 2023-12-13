@@ -2,8 +2,8 @@
 name = "apic"
 version = "0.1.0"
 authors = ["Philipp Oppermann <dev@phil-opp.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 bit_field = "0.10.1"
-volatile = "0.4.1"
+volatile = "0.5.1"

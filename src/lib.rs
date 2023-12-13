@@ -1,74 +1,86 @@
 #![no_std]
-#![feature(unsafe_block_in_unsafe_fn)]
-#![deny(unsafe_op_in_unsafe_fn)]
+#![feature(nonzero_ops)]
+#![feature(strict_provenance)]
 
-use volatile::Volatile;
+use core::ptr::NonNull;
+use volatile::VolatilePtr;
+use volatile::access::{Access, ReadOnly, WriteOnly, ReadWrite};
 
 pub mod io_apic;
 pub mod registers;
 
 pub struct ApicBase {
-    base_addr: *mut u8,
+    base_addr: NonNull<u8>,
 }
 
 impl ApicBase {
     /// base address must have 'static lifetime
-    pub const unsafe fn new(base_addr: *mut ()) -> Self {
+    pub const unsafe fn new(base_addr: NonNull<u8>) -> Self {
         Self {
-            base_addr: base_addr.cast(),
+            base_addr,
         }
     }
 
-    pub fn id(&mut self) -> Volatile<&mut registers::Id> {
-        unsafe { self.offset(Offset::Id) }
+    pub fn id<'a>(&'a self) -> VolatilePtr<'a, registers::Id> {
+        unsafe { self.offset(Offset::Id, ReadWrite) }
     }
 
-    pub fn version(&mut self) -> Volatile<&mut registers::Version> {
-        unsafe { self.offset(Offset::Version) }
+    pub fn version<'a>(&'a self) -> VolatilePtr<'a, registers::Version, ReadOnly> {
+        unsafe { self.offset(Offset::Version, ReadOnly) }
     }
 
-    pub fn extended_apic_feature(&mut self) -> Volatile<&mut registers::ExtendedApicFeature> {
-        unsafe { self.offset(Offset::ExtendedApicFeature) }
+    pub fn extended_apic_feature<'a>(&'a self) -> VolatilePtr<'a, registers::ExtendedApicFeature> {
+        unsafe { self.offset(Offset::ExtendedApicFeature, ReadWrite) }
     }
 
-    pub fn extended_apic_control(&mut self) -> Volatile<&mut registers::ExtendedApicControl> {
-        unsafe { self.offset(Offset::ExtendedApicControl) }
+    pub fn extended_apic_control<'a>(&'a self) -> VolatilePtr<'a, registers::ExtendedApicControl> {
+        unsafe { self.offset(Offset::ExtendedApicControl, ReadWrite) }
     }
 
-    pub fn spurious_interrupt_vector(
-        &mut self,
-    ) -> Volatile<&mut registers::SpuriousInterruptVector> {
-        unsafe { self.offset(Offset::SpuriousInterruptVector) }
+    pub fn spurious_interrupt_vector<'a>(
+        &'a self,
+    ) -> VolatilePtr<'a, registers::SpuriousInterruptVector> {
+        unsafe { self.offset(Offset::SpuriousInterruptVector, ReadWrite) }
     }
 
-    pub fn timer_local_vector_table_entry(
-        &mut self,
-    ) -> Volatile<&mut registers::TimerLocalVectorTableEntry> {
-        unsafe { self.offset(Offset::TimerLocalVectorTableEntry) }
+    pub fn timer_local_vector_table_entry<'a>(
+        &'a self,
+    ) -> VolatilePtr<'a, registers::TimerLocalVectorTableEntry> {
+        unsafe { self.offset(Offset::TimerLocalVectorTableEntry, ReadWrite) }
     }
 
-    pub fn timer_initial_count(&mut self) -> Volatile<&mut registers::TimerInitialCount> {
-        unsafe { self.offset(Offset::TimerInitialCount) }
+    pub fn timer_initial_count<'a>(&'a self) -> VolatilePtr<'a, registers::TimerInitialCount> {
+        unsafe { self.offset(Offset::TimerInitialCount, ReadWrite) }
     }
 
-    pub fn timer_divide_configuration(
-        &mut self,
-    ) -> Volatile<&mut registers::TimerDivideConfiguration> {
-        unsafe { self.offset(Offset::TimerDivideConfiguration) }
+    pub fn timer_divide_configuration<'a>(
+        &'a self,
+    ) -> VolatilePtr<'a, registers::TimerDivideConfiguration> {
+        unsafe { self.offset(Offset::TimerDivideConfiguration, ReadWrite) }
     }
 
-    pub fn end_of_interrupt(&self) -> &'static registers::EndOfInterrupt {
-        let ptr = self.offset_ptr(Offset::EndOfInterrupt).cast();
-        unsafe { &*ptr }
+    pub fn end_of_interrupt<'a>(&self) -> &'static mut registers::EndOfInterrupt {
+        unsafe {
+            self.base_addr
+                .map_addr(|addr| {
+                    addr.unchecked_add(Offset::EndOfInterrupt as usize)
+                })
+                .cast::<registers::EndOfInterrupt>()
+                .as_mut()
+        }
     }
 
-    unsafe fn offset<T>(&mut self, offset: Offset) -> Volatile<&mut T> {
-        let ptr = self.offset_ptr(offset).cast();
-        Volatile::new(unsafe { &mut *ptr })
-    }
-
-    fn offset_ptr(&self, offset: Offset) -> *mut u8 {
-        self.base_addr.wrapping_add(offset as usize)
+    unsafe fn offset<'a, T, A>(&self, offset: Offset, access: A) -> VolatilePtr<'a, T, A>
+    where A: Access
+    {
+        VolatilePtr::new_restricted(
+            access,
+            self.base_addr
+                .map_addr(|addr| {
+                    addr.unchecked_add(offset as usize)
+                })
+                .cast()
+        )
     }
 }
 
