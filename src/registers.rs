@@ -1,4 +1,4 @@
-use core::{convert::TryInto, sync::atomic::AtomicU32, sync::atomic::Ordering};
+use core::{sync::atomic::AtomicU32, sync::atomic::Ordering};
 
 use bit_field::BitField;
 
