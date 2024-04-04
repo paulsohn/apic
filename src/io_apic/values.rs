@@ -1,5 +1,4 @@
 use bit_field::BitField;
-use core::convert::{TryFrom, TryInto};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Version(u32);

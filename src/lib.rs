@@ -4,13 +4,13 @@
 
 use core::ptr::NonNull;
 use volatile::VolatilePtr;
-use volatile::access::{Access, ReadOnly, WriteOnly, ReadWrite};
+use volatile::access::{Access, ReadOnly, ReadWrite};
 
 pub mod io_apic;
 pub mod registers;
 
 pub struct ApicBase {
-    base_addr: NonNull<u8>,
+    pub base_addr: NonNull<u8>,
 }
 
 impl ApicBase {
